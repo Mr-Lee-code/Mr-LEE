@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Flappy Bird AI – Dragon Challenge</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<style>
+html,body{
+  margin:0;padding:0;width:100%;height:100%;
+  overflow:hidden;background:#70c5ce;touch-action:none
+}
+canvas{display:block}
+button{
+  position:fixed;
+  padding:12px 18px;
+  font-size:16px;
+  border-radius:20px;
+  border:none;
+  background:rgba(0,0,0,.6);
+  color:#fff;
+  z-index:10
+}
+#toggleAI{bottom:20px;right:20px}
+#restartBtn{
+  display:none;
+  top:55%;left:50%;
+  transform:translate(-50%,-50%)
+}
+</style>
+</head>
+
+<body>
+<canvas id="game"></canvas>
+<button id="toggleAI">AI: ON</button>
+<button id="restartBtn">CHƠI LẠI</button>
+
+<script>
+// ===== CANVAS =====
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
+function resize(){
+  canvas.width=innerWidth;
+  canvas.height=innerHeight;
+}
+addEventListener("resize",resize);resize();
+
+// ===== SOUND =====
+const sndFlap=new Audio("https://assets.mixkit.co/active_storage/sfx/2043/2043-preview.mp3");
+const sndHit =new Audio("https://assets.mixkit.co/active_storage/sfx/270/270-preview.mp3");
+const sndFire=new Audio("https://assets.mixkit.co/active_storage/sfx/2840/2840-preview.mp3");
+
+// ===== AI =====
+let useAI=true;
+toggleAI.onclick=()=>{
+  useAI=!useAI;
+  toggleAI.textContent=useAI?"AI: ON":"AI: OFF";
+};
+
+// ===== GAME DATA =====
+const bird={x:0,y:0,r:16,v:0,g:0.5,jump:-8,rot:0};
+const pipes=[];
+const pipeW=80;
+
+let frame=0,score=0,gameOver=false;
+let groundX=0,shake=0;
+let startTime=Date.now();
+
+// ===== DIFFICULTY =====
+const NORMAL={gap:190,speed:4};
+const LEVELS={
+  1:{gap:140,speed:6,bonus:50},
+  2:{gap:115,speed:7,bonus:100},
+  3:{gap:95 ,speed:8,bonus:200}
+};
+
+let currentGap=NORMAL.gap;
+let currentSpeed=NORMAL.speed;
+
+// ===== CHALLENGE =====
+let inChallenge=false;
+let challengeLevel=0;
+let challengeClicks=0;
+const CHALLENGE_MAX=30;
+
+// ===== DRAGON =====
+let dragon=null;
+
+// ===== RESET =====
+function resetGame(){
+  pipes.length=0;
+  bird.x=canvas.width*0.25;
+  bird.y=canvas.height/2;
+  bird.v=0;
+  frame=score=0;
+  gameOver=false;
+  inChallenge=false;
+  challengeLevel=0;
+  challengeClicks=0;
+  dragon=null;
+  currentGap=NORMAL.gap;
+  currentSpeed=NORMAL.speed;
+  startTime=Date.now();
+  restartBtn.style.display="none";
+  spawnPipe();
+}
+restartBtn.onclick=resetGame;
+
+// ===== PIPE =====
+function spawnPipe(){
+  const minTop=80;
+  const maxTop=canvas.height-currentGap-160;
+  const top=Math.random()*(maxTop-minTop)+minTop;
+  pipes.push({x:canvas.width+50,top,passed:false});
+}
+
+// ===== CONTROL =====
+function flap(){
+  bird.v=bird.jump;
+  sndFlap.currentTime=0;
+  sndFlap.play();
+
+  if(inChallenge){
+    challengeClicks++;
+    if(challengeClicks>=CHALLENGE_MAX){
+      clearChallenge();
+    }
+  }
+}
+addEventListener("mousedown",()=>{if(!useAI&&!gameOver)flap()});
+addEventListener("touchstart",()=>{if(!useAI&&!gameOver)flap()});
+
+// ===== AI =====
+function autoAI(){
+  const next=pipes.find(p=>p.x+pipeW>bird.x);
+  if(!next) return;
+  const target=next.top+currentGap/2;
+  if(bird.y>target+6) flap();
+}
+
+// ===== CHALLENGE =====
+function startChallenge(level){
+  inChallenge=true;
+  challengeLevel=level;
+  challengeClicks=0;
+  currentGap=LEVELS[level].gap;
+  currentSpeed=LEVELS[level].speed;
+  spawnDragon();
+}
+function clearChallenge(){
+  score+=LEVELS[challengeLevel].bonus;
+  inChallenge=false;
+  challengeLevel=0;
+  currentGap=NORMAL.gap;
+  currentSpeed=NORMAL.speed;
+  dragon=null;
+}
+
+// ===== DRAGON =====
+function spawnDragon(){
+  dragon={x:bird.x-140,y:bird.y};
+}
+
+// ===== UPDATE =====
+function update(){
+  if(gameOver) return;
+  frame++;
+
+  if(frame%120===0) spawnPipe();
+  if(useAI) autoAI();
+
+  bird.v+=bird.g;
+  bird.y+=bird.v;
+  bird.rot=Math.min(Math.max(bird.v*3,-25),90);
+
+  groundX-=currentSpeed;
+  if(groundX<=-40) groundX=0;
+
+  if(dragon){
+    dragon.y+=(bird.y-dragon.y)*0.08;
+  }
+
+  for(let i=pipes.length-1;i>=0;i--){
+    const p=pipes[i];
+    p.x-=currentSpeed;
+
+    if(!p.passed && p.x+pipeW<bird.x){
+      p.passed=true;
+      score++;
+      if(score===100) startChallenge(1);
+      if(score===200) startChallenge(2);
+      if(score===300) startChallenge(3);
+    }
+
+    if(
+      bird.x+bird.r>p.x &&
+      bird.x-bird.r<p.x+pipeW &&
+      (bird.y-bird.r<p.top || bird.y+bird.r>p.top+currentGap)
+    ){
+      if(!inChallenge) crash();
+    }
+
+    if(p.x+pipeW<0) pipes.splice(i,1);
+  }
+
+  if(bird.y+bird.r>canvas.height-40 || bird.y-bird.r<0){
+    if(!inChallenge) crash();
+    else{
+      bird.y=Math.max(bird.r,Math.min(canvas.height-40-bird.r,bird.y));
+      bird.v=0;
+    }
+  }
+}
+
+function crash(){
+  sndHit.play();
+  shake=20;
+  gameOver=true;
+  restartBtn.style.display="block";
+}
+
+// ===== DRAW =====
+function drawBird(){
+  ctx.save();
+  ctx.translate(bird.x,bird.y);
+  ctx.rotate(bird.rot*Math.PI/180);
+
+  // body
+  ctx.fillStyle=inChallenge?"#00fff0":"#FFD93D";
+  ctx.beginPath();
+  ctx.arc(0,0,bird.r,0,Math.PI*2);
+  ctx.fill();
+
+  // glow
+  if(inChallenge){
+    ctx.strokeStyle="rgba(0,255,255,0.8)";
+    ctx.lineWidth=3;
+    ctx.stroke();
+  }
+
+  // eye
+  ctx.fillStyle="#fff";
+  ctx.beginPath();
+  ctx.arc(5,-4,4,0,Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle="#000";
+  ctx.beginPath();
+  ctx.arc(6,-4,2,0,Math.PI*2);
+  ctx.fill();
+
+  // beak
+  ctx.fillStyle="#FF8C00";
+  ctx.beginPath();
+  ctx.moveTo(bird.r-2,0);
+  ctx.lineTo(bird.r+10,-5);
+  ctx.lineTo(bird.r+10,5);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawDragon(){
+  if(!dragon) return;
+  ctx.fillStyle="#e74c3c";
+  ctx.beginPath();
+  ctx.arc(dragon.x,dragon.y,22,0,Math.PI*2);
+  ctx.fill();
+}
+
+function drawPipe(p){
+  ctx.fillStyle=inChallenge?"#9b59b6":"#2ecc71";
+  ctx.fillRect(p.x,0,pipeW,p.top);
+  ctx.fillRect(p.x,p.top+currentGap,pipeW,canvas.height);
+}
+
+function drawTime(){
+  const t=Math.floor((Date.now()-startTime)/1000);
+  const m=String(Math.floor(t/60)).padStart(2,"0");
+  const s=String(t%60).padStart(2,"0");
+  ctx.fillStyle="#fff";
+  ctx.font="20px Arial";
+  ctx.textAlign="left";
+  ctx.fillText(`⏱ ${m}:${s}`,20,30);
+}
+
+function draw(){
+  ctx.save();
+  if(shake>0){
+    ctx.translate(Math.random()*shake-shake/2,Math.random()*shake-shake/2);
+    shake--;
+  }
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  pipes.forEach(drawPipe);
+  drawBird();
+  drawDragon();
+
+  ctx.fillStyle="#fff";
+  ctx.font="48px Arial";
+  ctx.textAlign="center";
+  ctx.fillText(score,canvas.width/2,70);
+
+  if(inChallenge){
+    ctx.font="bold 30px Arial";
+    ctx.fillStyle="#ff004c";
+    ctx.fillText(
+      `CHALLENGE ${challengeLevel} – ${CHALLENGE_MAX-challengeClicks}`,
+      canvas.width/2,120
+    );
+  }
+
+  drawTime();
+  ctx.restore();
+}
+
+function loop(){
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+resetGame();
+loop();
+</script>
+</body>
+</html>
