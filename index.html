@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Goku Ultra Instinct – GOD MODE</title>
+
+<style>
+body{
+    margin:0;
+    background:linear-gradient(#000428,#004e92);
+    font-family:Arial;color:white;
+    user-select:none;
+}
+
+#ui{text-align:center;padding:6px}
+
+#game{
+    width:360px;height:600px;margin:auto;
+    background:#111;border:3px solid #fff;
+    position:relative;overflow:hidden;
+}
+
+#mapName{
+    position:absolute;top:5px;right:5px;
+    background:#000a;padding:4px 8px;font-size:12px;
+}
+
+#pole{
+    position:absolute;width:20px;height:8000px;
+    background:linear-gradient(#8B4513,#5a2e0c);
+    left:170px;bottom:0;
+}
+
+#goku{
+    position:absolute;width:50px;
+    left:145px;bottom:0;z-index:5;
+}
+
+/* 🔥 ULTRA INSTINCT GOD AURA */
+.aura{
+    position:absolute;
+    width:80px;height:80px;
+    left:130px;
+    border-radius:50%;
+    background:
+      radial-gradient(circle,
+      rgba(220,240,255,1) 0%,
+      rgba(120,200,255,.9) 40%,
+      rgba(0,120,255,.3) 70%,
+      transparent 80%);
+    filter:blur(1px);
+    animation:pulse 0.8s infinite;
+    z-index:3;
+}
+
+.flame{
+    position:absolute;
+    width:100px;height:120px;
+    left:120px;
+    background:
+      radial-gradient(ellipse at center,
+      rgba(255,255,255,.9),
+      rgba(180,220,255,.6),
+      rgba(0,120,255,.2),
+      transparent 70%);
+    animation:flame 0.5s infinite alternate;
+    mix-blend-mode:screen;
+    z-index:2;
+}
+
+@keyframes pulse{
+    0%{transform:scale(1);opacity:.7}
+    50%{transform:scale(1.25);opacity:1}
+    100%{transform:scale(1);opacity:.7}
+}
+
+@keyframes flame{
+    from{transform:scaleY(1) translateY(0)}
+    to{transform:scaleY(1.2) translateY(-6px)}
+}
+
+.obstacle{
+    position:absolute;font-size:30px;
+    left:-40px;animation:fly 4s linear forwards;
+}
+
+@keyframes fly{
+    from{left:-40px}to{left:400px}
+}
+
+/* 🎮 JOYSTICK */
+#joystick{
+    width:120px;height:120px;border-radius:50%;
+    background:#0007;position:fixed;
+    bottom:20px;left:20px;
+}
+#stick{
+    width:50px;height:50px;border-radius:50%;
+    background:#fff8;position:absolute;
+    top:35px;left:35px;
+}
+
+/* 🔥 SKILL */
+.skill{
+    border:2px solid #0ff;
+}
+.cooldown{
+    opacity:.4;
+    border-color:#555!important;
+    pointer-events:none;
+}
+
+#endScreen{
+    position:fixed;inset:0;
+    background:#000d;display:none;
+    align-items:center;justify-content:center;
+}
+#endBox{
+    background:#111;padding:20px;
+    border:2px solid #fff;text-align:center;
+}
+
+button{margin:4px;padding:6px 10px;cursor:pointer}
+</style>
+</head>
+
+<body>
+
+<div id="ui">
+⏱ <span id="time">600</span>s |
+📏 <span id="height">0</span> m
+</div>
+
+<div id="game">
+<div id="mapName">🌍 Trái Đất</div>
+<div id="pole"></div>
+<div id="flame" class="flame"></div>
+<div id="aura" class="aura"></div>
+<img id="goku" src="goku.png">
+</div>
+
+<div id="ui">
+<button onclick="saveGame()">💾 Save</button>
+<button onclick="loadGame()">📂 Load</button>
+<button onclick="climb()">⬆ Lên (W)</button>
+</div>
+
+<div id="ui">
+<b>🔥 SKILL TĂNG BẬC (Cooldown 0.5s)</b><br>
+<button class="skill" id="s1" onclick="useSkill(20,'s1')">☁ +20</button>
+<button class="skill" id="s2" onclick="useSkill(50,'s2')">👊 +50</button>
+<button class="skill" id="s3" onclick="useSkill(200,'s3')">🐵 +200</button>
+<button class="skill" id="s4" onclick="useSkill(400,'s4')">🔥 +400</button>
+</div>
+
+<div id="joystick"><div id="stick"></div></div>
+
+<div id="endScreen">
+<div id="endBox">
+<h3>🏁 KẾT THÚC</h3>
+<p>Độ cao: <span id="finalHeight"></span> m</p>
+<input id="playerName" placeholder="Tên của bạn"><br><br>
+<button onclick="saveScore()">💾 Lưu BXH</button>
+<button onclick="restart()">🔁 Chơi lại</button>
+<h4>🏆 BXH</h4>
+<div id="leaderboard"></div>
+</div>
+</div>
+
+<audio id="music" src="conan.mp3" loop></audio>
+
+<script>
+let height=0,time=600,gameOver=false;
+const goku=document.getElementById("goku");
+const aura=document.getElementById("aura");
+const flame=document.getElementById("flame");
+const heightText=document.getElementById("height");
+const timeText=document.getElementById("time");
+const mapName=document.getElementById("mapName");
+const music=document.getElementById("music");
+
+music.volume=.4;music.play();
+
+/* MAP */
+function updateMap(){
+if(height<1000) mapName.innerText="🌍 Trái Đất";
+else if(height<3000) mapName.innerText="☁ Tầng Mây";
+else if(height<6000) mapName.innerText="🔥 Thiên Giới";
+else mapName.innerText="🌌 Vũ Trụ";
+}
+
+function cap(){
+if(height<-99999) height=-99999;
+if(height>9999999999) height=9999999999;
+}
+
+function update(){
+heightText.innerText=height;
+let pos=Math.max(0,height/10);
+goku.style.bottom=pos+"px";
+aura.style.bottom=(pos-10)+"px";
+flame.style.bottom=(pos-30)+"px";
+updateMap();
+}
+
+function climb(){
+if(gameOver)return;
+height+=5;cap();update();
+}
+
+/* 🔥 SKILL COOLDOWN */
+function useSkill(v,id){
+if(gameOver)return;
+const btn=document.getElementById(id);
+if(btn.classList.contains("cooldown"))return;
+
+height+=v;cap();update();
+btn.classList.add("cooldown");
+setTimeout(()=>btn.classList.remove("cooldown"),500);
+}
+
+document.addEventListener("keydown",e=>{
+if(e.key==="w"||e.key==="W")climb();
+});
+
+/* TIMER */
+setInterval(()=>{
+if(gameOver)return;
+if(time<=0){endGame();return;}
+time--;timeText.innerText=time;climb();
+},1000);
+
+/* OBSTACLE */
+const obs=[{icon:"🐦",v:-20},{icon:"🦶",v:-50},{icon:"🔱",v:-100},{icon:"🐷",v:-300}];
+setInterval(()=>{
+if(gameOver)return;
+let o=obs[Math.floor(Math.random()*obs.length)];
+let e=document.createElement("div");
+e.className="obstacle";e.innerText=o.icon;
+e.style.top=Math.random()*450+"px";
+document.getElementById("game").appendChild(e);
+let chk=setInterval(()=>{
+let r1=e.getBoundingClientRect();
+let r2=goku.getBoundingClientRect();
+if(r1.left<r2.right&&r1.right>r2.left){
+height+=o.v;cap();update();
+e.remove();clearInterval(chk);
+}},50);
+e.onanimationend=()=>{e.remove();clearInterval(chk);}
+},3000);
+
+/* JOYSTICK */
+document.getElementById("joystick").addEventListener("touchmove",e=>{
+e.preventDefault();climb();
+});
+
+/* SAVE / LOAD */
+function saveGame(){
+localStorage.setItem("goku_save",JSON.stringify({height,time}));
+alert("Đã lưu game");
+}
+function loadGame(){
+let s=JSON.parse(localStorage.getItem("goku_save"));
+if(!s)return alert("Chưa có save");
+height=s.height;time=s.time;update();
+}
+
+/* END + BXH */
+function endGame(){
+gameOver=true;music.pause();
+document.getElementById("endScreen").style.display="flex";
+document.getElementById("finalHeight").innerText=height;
+loadBoard();
+}
+
+function saveScore(){
+let name=document.getElementById("playerName").value||"NoName";
+let board=JSON.parse(localStorage.getItem("bxh")||"[]");
+board.push({name,score:height});
+board.sort((a,b)=>b.score-a.score);
+board=board.slice(0,10);
+localStorage.setItem("bxh",JSON.stringify(board));
+loadBoard();
+}
+
+function loadBoard(){
+let board=JSON.parse(localStorage.getItem("bxh")||"[]");
+let html="";
+board.forEach((b,i)=>html+=`${i+1}. ${b.name} - ${b.score} m<br>`);
+document.getElementById("leaderboard").innerHTML=html;
+}
+
+function restart(){location.reload();}
+</script>
+
+</body>
+</html>
